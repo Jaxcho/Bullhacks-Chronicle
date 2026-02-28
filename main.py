@@ -3,12 +3,15 @@ from werkzeug.utils import secure_filename
 import os
 import json
 from datetime import datetime
+from pathlib import Path
 import pytesseract
 from PIL import Image
-from openai import OpenAI
+from google import genai
 from dotenv import load_dotenv
 
-load_dotenv(override=True)
+PROJECT_ROOT = Path(__file__).resolve().parent
+ENV_FILE = PROJECT_ROOT / '.env'
+load_dotenv(dotenv_path=ENV_FILE, override=True)
 
 app = Flask(__name__)
 
@@ -45,60 +48,48 @@ def save_metadata(data):
 
 
 def generate_summary_from_text(text):
-    api_key = os.getenv('OPENAI_API_KEY', '').strip()
+    api_key = os.getenv('AIzaSyD6iMnwYrPsBJNr9GShpfWBlwv-qsFQ8vA', '').strip()
     if not api_key:
-        raise ValueError('OPENAI_API_KEY is not configured')
+        if not ENV_FILE.exists():
+            raise ValueError('GENAI_API_KEY is not configured. Missing .env file. Create it with: cp .env.example .env')
+        raise ValueError('GENAI_API_KEY is not configured in .env')
 
-    model = os.getenv('OPENAI_MODEL', 'gpt-4o-mini').strip() or 'gpt-4o-mini'
-    fallback_models_raw = os.getenv('OPENAI_MODEL_FALLBACKS', 'gpt-4.1-mini')
+    model = os.getenv('GENAI_MODEL', 'gemini-2.0-flash').strip() or 'gemini-2.0-flash'
+    fallback_models_raw = os.getenv('GENAI_MODEL_FALLBACKS', 'gemini-1.5-flash')
     fallback_models = [m.strip() for m in fallback_models_raw.split(',') if m.strip()]
     candidate_models = []
     for candidate in [model, *fallback_models]:
         if candidate not in candidate_models:
             candidate_models.append(candidate)
 
-    client = OpenAI(api_key=api_key)
+    client = genai.Client(api_key=api_key)
     last_permission_error = None
 
     for candidate_model in candidate_models:
         try:
-            response = client.responses.create(
-                model=candidate_model,
-                input=[
-                    {
-                        'role': 'system',
-                        'content': [
-                            {
-                                'type': 'input_text',
-                                'text': 'You summarize OCR text from historical images. Return a concise summary in 3-5 bullet points.'
-                            }
-                        ]
-                    },
-                    {
-                        'role': 'user',
-                        'content': [
-                            {
-                                'type': 'input_text',
-                                'text': text
-                            }
-                        ]
-                    }
-                ]
+            prompt = (
+                'You summarize OCR text from historical images. '
+                'Return a concise summary in 3-5 bullet points.\n\n'
+                f'OCR text:\n{text}'
             )
-            summary = (response.output_text or '').strip()
+            response = client.models.generate_content(
+                model=candidate_model,
+                contents=prompt,
+            )
+            summary = (getattr(response, 'text', None) or '').strip()
             if not summary:
                 raise ValueError('No summary returned by model')
             return summary, candidate_model
         except Exception as e:
-            status_code = getattr(e, 'status_code', None)
-            if status_code == 403:
+            error_text = str(e).lower()
+            if '403' in error_text or 'permission' in error_text or 'forbidden' in error_text:
                 last_permission_error = e
                 continue
             raise
 
     tried_models = ', '.join(candidate_models)
     if last_permission_error:
-        raise PermissionError(f'No accessible OpenAI model. Tried: {tried_models}. Last error: {last_permission_error}')
+        raise PermissionError(f'No accessible GenAI model. Tried: {tried_models}. Last error: {last_permission_error}')
     raise ValueError(f'No model available to generate summary. Tried: {tried_models}')
 
 
@@ -147,6 +138,14 @@ def upload():
         print(f"OCR failed for {filename}: {e}")
         ocr_text = ""
 
+    ai_summary = ""
+    ai_summary_model = ""
+    if ocr_text.strip():
+        try:
+            ai_summary, ai_summary_model = generate_summary_from_text(ocr_text)
+        except Exception as e:
+            print(f"Summary generation failed for {filename}: {e}")
+
     metadata = load_metadata()
     entry = {
         'title': title,
@@ -155,12 +154,20 @@ def upload():
         'extracted_text': ocr_text,
         'uploaded_at': datetime.utcnow().isoformat() + 'Z'
     }
+    if ai_summary:
+        entry['summary'] = ai_summary
+        entry['summary_model'] = ai_summary_model
+        entry['summary_generated_at'] = datetime.utcnow().isoformat() + 'Z'
     if date_str:
         entry['date'] = date_str
     metadata[filename] = entry
     save_metadata(metadata)
 
-    return jsonify({"message": f"Image saved as {filename}", "filename": filename})
+    return jsonify({
+        "message": f"Image saved as {filename}",
+        "filename": filename,
+        "summary_generated": bool(ai_summary)
+    })
 
 
 @app.route("/search")
@@ -300,10 +307,10 @@ def summarize_image(filename):
         return jsonify({'message': str(e)}), 500
     except Exception as e:
         error_text = str(e).lower()
-        if '401' in error_text or 'invalid api key' in error_text or 'authentication' in error_text:
-            return jsonify({'message': 'OpenAI authentication failed. Check OPENAI_API_KEY.'}), 401
-        if '403' in error_text or 'permission' in error_text or 'access denied' in error_text:
-            return jsonify({'message': 'OpenAI access denied for this model/project. Try a different model or check project permissions.'}), 403
+        if '401' in error_text or 'invalid api key' in error_text or 'authentication' in error_text or 'unauthenticated' in error_text:
+            return jsonify({'message': 'GenAI authentication failed. Check GENAI_API_KEY.'}), 401
+        if '403' in error_text or 'permission' in error_text or 'access denied' in error_text or 'forbidden' in error_text:
+            return jsonify({'message': 'GenAI access denied for this model/project. Try a different model or check project permissions.'}), 403
         return jsonify({'message': f'Failed to generate summary: {e}'}), 500
 
     metadata[filename]['summary'] = summary
