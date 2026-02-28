@@ -1,50 +1,10 @@
+
 {% extends "base.html" %}
 
-{% block title %}Upload Image{% endblock %}
+{% block title %}Home{% endblock %}
 
 {% block content %}
-    <h1>Upload an Image</h1>
-    
-    <form id="uploadForm" enctype="multipart/form-data">
-        <!-- Image input -->
-        <input type="file" id="imageInput" name="image" accept="image/*" required />
-        
-        <!-- Submit button -->
-        <button type="submit">Upload Image</button>
-    </form>
-    
-    <!-- Preview image (optional) -->
-    <img id="imagePreview" style="max-width: 300px; margin-top: 20px;" />
-    <p id="uploadStatus"></p>
-    
-    <script>
-        // Preview image before uploading
-        document.getElementById('imageInput').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(event) {
-                    document.getElementById('imagePreview').src = event.target.result;
-                };
-                reader.readAsDataURL(file);
-            }
-        });
-
-        // Handle form submission
-        document.getElementById('uploadForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const formData = new FormData(this);
-            try {
-                const response = await fetch('/upload', {
-                    method: 'POST',
-                    body: formData
-                });
-                const result = await response.json();
-                document.getElementById('uploadStatus').textContent = result.message;
-            } catch (error) {
-                document.getElementById('uploadStatus').textContent = 'Error: ' + error;
-            }
-        });
-    </script>
+    <h1>Welcome to Bullhacks Chronicle</h1>
+    <p>Use the navigation above to Upload images, Search by tags/title, or view the Timeline.</p>
 {% endblock %}
+
