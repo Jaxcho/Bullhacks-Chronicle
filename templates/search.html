@@ -22,6 +22,7 @@
 				</a>
 				<div class="meta">
 					<strong>{{ img.title or img.filename }}</strong><br />
+					<a href="/image/{{ img.filename }}">View</a><br />
 					{% if img.date %}<small>Date: {{ img.date }}</small><br />{% endif %}
 					{% if img.tags and img.tags|length > 0 %}
 						<small>Tags: {{ img.tags | join(', ') }}</small>

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Image Detail{% endblock %}
+
+{% block content %}
+<h1>{{ entry.title or filename }}</h1>
+<img src="/uploads/{{ filename }}" style="max-width:400px; display:block; margin-bottom:10px;" />
+<ul>
+    <li><strong>Filename:</strong> {{ filename }}</li>
+    <li><strong>Date:</strong> {{ entry.date or entry.uploaded_at[:10] }}</li>
+    <li><strong>Tags:</strong> {{ entry.tags | join(', ') if entry.tags else 'None' }}</li>
+</ul>
+
+<h2>Comments</h2>
+{% if entry.comments and entry.comments|length > 0 %}
+    <ul>
+    {% for c in entry.comments %}
+        <li>{{ c.timestamp }} - {{ c.text }}</li>
+    {% endfor %}
+    </ul>
+{% else %}
+    <p>No comments yet.</p>
+{% endif %}
+
+<form id="commentForm">
+    <input type="hidden" name="filename" value="{{ filename }}" />
+    <textarea name="comment" placeholder="Add a comment"></textarea><br />
+    <button type="submit">Post Comment</button>
+</form>
+
+<button id="deleteBtn" style="margin-top:20px;color:red;">Delete Image</button>
+
+<script>
+    document.getElementById('commentForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const form = new FormData(this);
+        const payload = { filename: form.get('filename'), comment: form.get('comment') };
+        const resp = await fetch('/comment', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const result = await resp.json();
+        if (resp.ok) {
+            location.reload();
+        } else {
+            alert('Error: '+ result.message);
+        }
+    });
+
+    document.getElementById('deleteBtn').addEventListener('click', async function() {
+        if (!confirm('Delete this image?')) return;
+        const resp = await fetch('/image/{{ filename }}/delete', { method: 'POST' });
+        if (resp.ok) {
+            window.location.href = '/';
+        } else {
+            alert('Failed to delete');
+        }
+    });
+</script>
+{% endblock %}

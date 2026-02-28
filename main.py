@@ -134,7 +134,22 @@ def uploaded_file(filename):
 
 @app.route("/timeline")
 def timeline_page():
-    return render_template("timeline.html")
+    # prepare timeline entries sorted by date or upload
+    metadata = load_metadata()
+    items = []
+    for fn, entry in metadata.items():
+        e = dict(entry)
+        e['filename'] = fn
+        # use 'date' if present else uploaded_at
+        d = e.get('date') or e.get('uploaded_at', '')[:10]
+        e['_sort_date'] = d
+        items.append(e)
+    # sort chronologically ascending
+    try:
+        items.sort(key=lambda x: x.get('_sort_date', ''))
+    except Exception:
+        pass
+    return render_template("timeline.html", items=items)
 
 
 @app.route('/comment', methods=['POST'])
@@ -160,6 +175,32 @@ def add_comment():
     save_metadata(metadata)
 
     return jsonify({'message': 'comment added', 'comment': comment_entry})
+
+
+# detail page for an image
+@app.route('/image/<filename>')
+def image_detail(filename):
+    metadata = load_metadata()
+    if filename not in metadata:
+        return "Not found", 404
+    entry = metadata[filename]
+    return render_template('image.html', filename=filename, entry=entry)
+
+
+# deletion
+@app.route('/image/<filename>/delete', methods=['POST'])
+def delete_image(filename):
+    metadata = load_metadata()
+    if filename in metadata:
+        del metadata[filename]
+        save_metadata(metadata)
+    path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+    except Exception:
+        pass
+    return jsonify({'message': 'deleted'})
 
 
 

@@ -40,3 +40,30 @@ main {
 @keyframes spin {
     to { transform: rotate(360deg); }
 }
+/* timeline styles */
+.timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.timeline-entry {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.timeline-date {
+    min-width: 90px;
+    font-weight: bold;
+}
+
+.timeline-image img {
+    max-height: 100px;
+    width: auto;
+    object-fit: contain;
+}
+
+.timeline-meta {
+    flex: 1;
+}

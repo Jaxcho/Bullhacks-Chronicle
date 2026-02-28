@@ -3,6 +3,28 @@
 {% block title %}Timeline{% endblock %}
 
 {% block content %}
-<h1>Timeline Page</h1>
-<p>Timeline will be displayed here.</p>
+<h1>Timeline</h1>
+{% if items and items|length > 0 %}
+<div class="timeline">
+    {% for img in items %}
+    <div class="timeline-entry">
+        <div class="timeline-date">{{ img.date or img.uploaded_at[:10] }}</div>
+        <div class="timeline-image">
+            <a href="/uploads/{{ img.filename }}" target="_blank">
+                <img src="/uploads/{{ img.filename }}" alt="{{ img.title or img.filename }}" />
+            </a>
+        </div>
+        <div class="timeline-meta">
+            <strong>{{ img.title or img.filename }}</strong><br />
+            <a href="/image/{{ img.filename }}">View</a>
+            {% if img.tags and img.tags|length > 0 %}
+            <div>Tags: {{ img.tags | join(', ') }}</div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p>No timeline entries yet.</p>
+{% endif %}
 {% endblock %}
