@@ -24,6 +24,11 @@ def allowed_file(filename):
 def home():
     return render_template("index.html")
 
+# serve upload page with same template just to match nav behavior
+@app.route("/upload")
+def upload_page():
+    return render_template("index.html")
+
 @app.route("/upload", methods=['POST'])
 def upload():
     if 'image' not in request.files:
@@ -43,6 +48,14 @@ def upload():
     file.save(filepath)
     
     return jsonify({"message": f"Image saved as {filename}"})
+
+@app.route("/search")
+def search_page():
+    return render_template("search.html")
+
+@app.route("/timeline")
+def timeline_page():
+    return render_template("timeline.html")
 
 if __name__ == "__main__":
     app.run(debug=True)
