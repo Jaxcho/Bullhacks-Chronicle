@@ -11,6 +11,9 @@
 
         <label for="tags">Tags (comma-separated)</label>
         <input type="text" id="tags" name="tags" placeholder="tag1, tag2" />
+        <button type="button" id="generateTags">Generate Tags</button>
+        <span id="genStatus" style="margin-left:8px"></span>
+        <input type="hidden" id="uploadedFilename" name="uploadedFilename" />
 
         <!-- Image input -->
         <input type="file" id="imageInput" name="image" accept="image/*" required />
@@ -48,8 +51,94 @@
                 });
                 const result = await response.json();
                 document.getElementById('uploadStatus').textContent = result.message;
+                if (result.filename) {
+                    // remember uploaded filename for auto-save of tags
+                    const uploadedInput = document.getElementById('uploadedFilename');
+                    if (uploadedInput) uploadedInput.value = result.filename;
+
+                    // if tags present, auto-save them to metadata
+                    const tagsValue = document.getElementById('tags').value;
+                    if (tagsValue && tagsValue.trim()) {
+                        try {
+                            await fetch('/save_tags', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ filename: result.filename, tags: tagsValue.split(',').map(s=>s.trim()).filter(Boolean) })
+                            });
+                        } catch (err) {
+                            console.warn('Failed to save tags after upload', err);
+                        }
+                    }
+                }
             } catch (error) {
                 document.getElementById('uploadStatus').textContent = 'Error: ' + error;
+            }
+        });
+
+        // Generate tags using server-side make_tags function (append and show loading)
+        document.getElementById('generateTags').addEventListener('click', async function(e) {
+            const btn = document.getElementById('generateTags');
+            const status = document.getElementById('genStatus');
+            const fileInput = document.getElementById('imageInput');
+            const file = fileInput.files[0];
+            if (!file) {
+                alert('Please select an image first');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('image', file);
+
+            try {
+                btn.disabled = true;
+                status.innerHTML = '<span class="spinner"></span> Generating...';
+                const resp = await fetch('/generate_tags', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await resp.json();
+                if (resp.ok && data.tags) {
+                    // merge with existing tags, dedupe
+                    const existing = document.getElementById('tags').value;
+                    const existingArr = existing ? existing.split(',').map(s=>s.trim()).filter(Boolean) : [];
+                    const newArr = data.tags.map(t=>String(t).trim()).filter(Boolean);
+                    const merged = Array.from(new Set(existingArr.concat(newArr)));
+                    document.getElementById('tags').value = merged.join(', ');
+
+                    // if image already uploaded, auto-save tags to metadata
+                    const uploadedInput = document.getElementById('uploadedFilename');
+                    const uploaded = uploadedInput ? uploadedInput.value : '';
+                    if (uploaded) {
+                        try {
+                            const saveResp = await fetch('/save_tags', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ filename: uploaded, tags: merged })
+                            });
+                            if (saveResp.ok) {
+                                status.textContent = 'Saved';
+                                setTimeout(()=> { status.textContent = ''; }, 1200);
+                            } else {
+                                status.textContent = 'Generated (not saved)';
+                                setTimeout(()=> { status.textContent = ''; }, 1600);
+                            }
+                        } catch (err) {
+                            console.warn('Failed to auto-save tags', err);
+                            status.textContent = 'Generated (save failed)';
+                            setTimeout(()=> { status.textContent = ''; }, 1600);
+                        }
+                    } else {
+                        status.textContent = 'Generated (will save after upload)';
+                        setTimeout(()=> { status.textContent = ''; }, 1500);
+                    }
+                } else {
+                    alert('Tag generation failed: ' + (data.message || data.error || 'unknown'));
+                }
+            } catch (err) {
+                alert('Error generating tags: ' + err);
+            } finally {
+                btn.disabled = false;
+                if (status.innerHTML.includes('spinner')) status.textContent = '';
             }
         });
     </script>

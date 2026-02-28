@@ -25,3 +25,18 @@ main {
     margin-top: 60px; /* leave space for fixed header */
     padding: 20px;
 }
+/* small inline spinner used next to Generate Tags */
+.spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    vertical-align: middle;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
