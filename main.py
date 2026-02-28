@@ -3,10 +3,12 @@ from werkzeug.utils import secure_filename
 import os
 import json
 from datetime import datetime
-import traceback
-import uuid
 import pytesseract
 from PIL import Image
+from openai import OpenAI
+from dotenv import load_dotenv
+
+load_dotenv(override=True)
 
 app = Flask(__name__)
 
@@ -40,6 +42,64 @@ def load_metadata():
 def save_metadata(data):
     with open(METADATA_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def generate_summary_from_text(text):
+    api_key = os.getenv('OPENAI_API_KEY', '').strip()
+    if not api_key:
+        raise ValueError('OPENAI_API_KEY is not configured')
+
+    model = os.getenv('OPENAI_MODEL', 'gpt-4o-mini').strip() or 'gpt-4o-mini'
+    fallback_models_raw = os.getenv('OPENAI_MODEL_FALLBACKS', 'gpt-4.1-mini')
+    fallback_models = [m.strip() for m in fallback_models_raw.split(',') if m.strip()]
+    candidate_models = []
+    for candidate in [model, *fallback_models]:
+        if candidate not in candidate_models:
+            candidate_models.append(candidate)
+
+    client = OpenAI(api_key=api_key)
+    last_permission_error = None
+
+    for candidate_model in candidate_models:
+        try:
+            response = client.responses.create(
+                model=candidate_model,
+                input=[
+                    {
+                        'role': 'system',
+                        'content': [
+                            {
+                                'type': 'input_text',
+                                'text': 'You summarize OCR text from historical images. Return a concise summary in 3-5 bullet points.'
+                            }
+                        ]
+                    },
+                    {
+                        'role': 'user',
+                        'content': [
+                            {
+                                'type': 'input_text',
+                                'text': text
+                            }
+                        ]
+                    }
+                ]
+            )
+            summary = (response.output_text or '').strip()
+            if not summary:
+                raise ValueError('No summary returned by model')
+            return summary, candidate_model
+        except Exception as e:
+            status_code = getattr(e, 'status_code', None)
+            if status_code == 403:
+                last_permission_error = e
+                continue
+            raise
+
+    tried_models = ', '.join(candidate_models)
+    if last_permission_error:
+        raise PermissionError(f'No accessible OpenAI model. Tried: {tried_models}. Last error: {last_permission_error}')
+    raise ValueError(f'No model available to generate summary. Tried: {tried_models}')
 
 
 @app.route("/")
@@ -222,6 +282,38 @@ def image_detail(filename):
     return render_template('image.html', filename=filename, entry=entry)
 
 
+@app.route('/image/<filename>/summarize', methods=['POST'])
+def summarize_image(filename):
+    metadata = load_metadata()
+    if filename not in metadata:
+        return jsonify({'message': 'file not found in metadata'}), 404
+
+    extracted_text = (metadata[filename].get('extracted_text') or '').strip()
+    if not extracted_text:
+        return jsonify({'message': 'no OCR text available to summarize'}), 400
+
+    try:
+        summary, used_model = generate_summary_from_text(extracted_text)
+    except PermissionError as e:
+        return jsonify({'message': str(e)}), 403
+    except ValueError as e:
+        return jsonify({'message': str(e)}), 500
+    except Exception as e:
+        error_text = str(e).lower()
+        if '401' in error_text or 'invalid api key' in error_text or 'authentication' in error_text:
+            return jsonify({'message': 'OpenAI authentication failed. Check OPENAI_API_KEY.'}), 401
+        if '403' in error_text or 'permission' in error_text or 'access denied' in error_text:
+            return jsonify({'message': 'OpenAI access denied for this model/project. Try a different model or check project permissions.'}), 403
+        return jsonify({'message': f'Failed to generate summary: {e}'}), 500
+
+    metadata[filename]['summary'] = summary
+    metadata[filename]['summary_model'] = used_model
+    metadata[filename]['summary_generated_at'] = datetime.utcnow().isoformat() + 'Z'
+    save_metadata(metadata)
+
+    return jsonify({'message': 'summary generated', 'summary': summary})
+
+
 # deletion
 @app.route('/image/<filename>/delete', methods=['POST'])
 def delete_image(filename):
@@ -243,8 +335,6 @@ def delete_image(filename):
 
 
 if __name__ == "__main__":
-    import os
     port = int(os.getenv('PORT', '5000'))
     host = os.getenv('HOST', '127.0.0.1')
     app.run(debug=True, host=host, port=port)
-    port = 5000

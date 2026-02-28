@@ -50,8 +50,15 @@
                     body: formData
                 });
                 const result = await response.json();
-                document.getElementById('uploadStatus').textContent = result.message;
-                // no additional processing required after upload
+                if (response.ok) {
+                    document.getElementById('uploadStatus').textContent = result.message;
+                    // Redirect to image detail page
+                    setTimeout(() => {
+                        window.location.href = `/image/${result.filename}`;
+                    }, 500);
+                } else {
+                    document.getElementById('uploadStatus').textContent = 'Error: ' + result.message;
+                }
             } catch (error) {
                 document.getElementById('uploadStatus').textContent = 'Error: ' + error;
             }
