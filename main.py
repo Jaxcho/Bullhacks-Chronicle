@@ -93,9 +93,10 @@ def upload():
 
 @app.route("/search")
 def search_page():
+    q = request.args.get('q', '').strip().lower()
+    start = request.args.get('start_date', '').strip()
+    end = request.args.get('end_date', '').strip()
     metadata = load_metadata()
-    # metadata is a dict keyed by filename -> entry
-    # convert to list of {filename, **entry} for template convenience
     items = []
     for fn, entry in metadata.items():
         e = dict(entry)
@@ -106,7 +107,24 @@ def search_page():
         items.sort(key=lambda x: x.get('uploaded_at', ''), reverse=True)
     except Exception:
         pass
-    return render_template("search.html", images=items)
+    # filter by tag
+    if q:
+        items = [img for img in items if any(q in t.lower() for t in img.get('tags', []))]
+    # filter by date range if provided (use entry['date'] or uploaded_at)
+    def in_range(img):
+        if not (start or end):
+            return True
+        d = img.get('date') or img.get('uploaded_at', '')[:10]
+        try:
+            if start and d < start:
+                return False
+            if end and d > end:
+                return False
+        except Exception:
+            pass
+        return True
+    items = [img for img in items if in_range(img)]
+    return render_template("search.html", images=items, query=q, start_date=start, end_date=end)
 
 
 @app.route('/uploads/<path:filename>')
