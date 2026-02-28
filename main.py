@@ -5,6 +5,8 @@ import json
 from datetime import datetime
 import traceback
 import uuid
+import pytesseract
+from PIL import Image
 
 app = Flask(__name__)
 
@@ -76,11 +78,21 @@ def upload():
     # optional date field (YYYY-MM-DD)
     date_str = request.form.get('date', '').strip()
 
+    # Extract text from image using OCR
+    ocr_text = ""
+    try:
+        img = Image.open(filepath)
+        ocr_text = pytesseract.image_to_string(img)
+    except Exception as e:
+        print(f"OCR failed for {filename}: {e}")
+        ocr_text = ""
+
     metadata = load_metadata()
     entry = {
         'title': title,
         'tags': tags,
         'comments': [],
+        'extracted_text': ocr_text,
         'uploaded_at': datetime.utcnow().isoformat() + 'Z'
     }
     if date_str:
@@ -175,6 +187,29 @@ def add_comment():
     save_metadata(metadata)
 
     return jsonify({'message': 'comment added', 'comment': comment_entry})
+
+
+@app.route('/comment/delete', methods=['POST'])
+def delete_comment():
+    data = request.get_json(force=True, silent=True)
+    if not data or 'filename' not in data or 'index' not in data:
+        return jsonify({'message': 'filename and index required'}), 400
+
+    filename = data['filename']
+    index = data['index']
+
+    metadata = load_metadata()
+    if filename not in metadata:
+        return jsonify({'message': 'file not found in metadata'}), 404
+
+    comments = metadata[filename].get('comments', [])
+    if index < 0 or index >= len(comments):
+        return jsonify({'message': 'invalid comment index'}), 400
+
+    comments.pop(index)
+    save_metadata(metadata)
+
+    return jsonify({'message': 'comment deleted'})
 
 
 # detail page for an image

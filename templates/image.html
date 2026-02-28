@@ -11,11 +11,21 @@
     <li><strong>Tags:</strong> {{ entry.tags | join(', ') if entry.tags else 'None' }}</li>
 </ul>
 
+{% if entry.extracted_text %}
+<h2>Extracted Text (OCR)</h2>
+<div style="background:#f5f5f5; padding:10px; border-radius:5px; white-space:pre-wrap; word-wrap:break-word;">
+{{ entry.extracted_text }}
+</div>
+{% endif %}
+
 <h2>Comments</h2>
 {% if entry.comments and entry.comments|length > 0 %}
     <ul>
     {% for c in entry.comments %}
-        <li>{{ c.timestamp }} - {{ c.text }}</li>
+        <li>
+            {{ c.timestamp[0:10] }} - {{ c.text }}
+            <button class="delete-comment-btn" data-index="{{ loop.index0 }}" style="margin-left:10px; color:red; font-size:0.8em;">Delete</button>
+        </li>
     {% endfor %}
     </ul>
 {% else %}
@@ -46,6 +56,24 @@
         } else {
             alert('Error: '+ result.message);
         }
+    });
+
+    // Delete comment buttons
+    document.querySelectorAll('.delete-comment-btn').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            if (!confirm('Delete this comment?')) return;
+            const index = this.dataset.index;
+            const resp = await fetch('/comment/delete', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ filename: '{{ filename }}', index: parseInt(index) })
+            });
+            if (resp.ok) {
+                location.reload();
+            } else {
+                alert('Failed to delete comment');
+            }
+        });
     });
 
     document.getElementById('deleteBtn').addEventListener('click', async function() {
