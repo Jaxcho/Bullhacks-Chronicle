@@ -4,11 +4,18 @@ import os
 import json
 import math
 import re
+import importlib
 from datetime import datetime
 from pathlib import Path
 from collections import Counter
 import pytesseract
-from PIL import Image
+from PIL import Image, ImageOps, ImageFilter
+try:
+    pillow_heif = importlib.import_module('pillow_heif')
+    pillow_heif.register_heif_opener()
+    HEIF_ENABLED = True
+except Exception:
+    HEIF_ENABLED = False
 from dotenv import load_dotenv
 from urllib import request as urlrequest, error as urlerror
 
@@ -20,7 +27,7 @@ app = Flask(__name__)
 
 # Configuration
 UPLOAD_FOLDER = 'uploads'
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'heic'}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'heic', 'heif'}
 METADATA_FILE = os.path.join(UPLOAD_FOLDER, 'metadata.json')
 
 # Create uploads folder if it doesn't exist
@@ -33,6 +40,16 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def make_unique_filename(filename):
+    name, ext = os.path.splitext(filename)
+    candidate = filename
+    counter = 1
+    while os.path.exists(os.path.join(app.config['UPLOAD_FOLDER'], candidate)):
+        candidate = f"{name}_{counter}{ext}"
+        counter += 1
+    return candidate
 
 
 def load_metadata():
@@ -56,15 +73,11 @@ def tokenize_text(text):
     return [tok for tok in re.findall(r"[a-z0-9]+", text.lower()) if len(tok) > 2]
 
 
-def entry_text_blob(filename, entry):
-    parts = [
-        filename,
-        entry.get('title', ''),
-        ' '.join(entry.get('tags', []) or []),
-        entry.get('summary', ''),
-        entry.get('extracted_text', ''),
-    ]
-    return ' '.join(p for p in parts if p)
+def entry_summary_text(entry):
+    summary = (entry.get('summary') or '').strip()
+    if summary:
+        return summary
+    return (entry.get('extracted_text') or '').strip()
 
 
 def cosine_similarity(text_a, text_b):
@@ -89,22 +102,17 @@ def get_related_entries(filename, metadata, limit=5):
         return []
 
     target = metadata[filename]
-    target_blob = entry_text_blob(filename, target)
-    target_tags = set((target.get('tags') or []))
+    target_summary = entry_summary_text(target)
+    if not target_summary:
+        return []
 
     related = []
     for other_filename, other_entry in metadata.items():
         if other_filename == filename:
             continue
 
-        other_blob = entry_text_blob(other_filename, other_entry)
-        text_score = cosine_similarity(target_blob, other_blob)
-
-        other_tags = set((other_entry.get('tags') or []))
-        union = target_tags | other_tags
-        tag_score = (len(target_tags & other_tags) / len(union)) if union else 0.0
-
-        score = (0.85 * text_score) + (0.15 * tag_score)
+        other_summary = entry_summary_text(other_entry)
+        score = cosine_similarity(target_summary, other_summary)
         if score <= 0:
             continue
 
@@ -177,6 +185,61 @@ def generate_summary_from_text(text):
     raise ValueError(f'No model available to generate summary. Tried: {tried_models}')
 
 
+def preprocess_image_for_ocr(image):
+    processed = ImageOps.exif_transpose(image)
+    if processed.mode not in ('L', 'RGB'):
+        processed = processed.convert('RGB')
+
+    width, height = processed.size
+    min_side = min(width, height)
+    if min_side < 1200:
+        scale = 1200 / float(min_side)
+        new_size = (int(width * scale), int(height * scale))
+        processed = processed.resize(new_size, Image.Resampling.LANCZOS)
+
+    gray = ImageOps.grayscale(processed)
+    gray = ImageOps.autocontrast(gray)
+    gray = gray.filter(ImageFilter.MedianFilter(size=3))
+    gray = gray.filter(ImageFilter.SHARPEN)
+
+    binary = gray.point(lambda px: 255 if px > 145 else 0)
+    return gray, binary
+
+
+def clean_ocr_text(text):
+    if not text:
+        return ''
+
+    words = re.findall(r"[A-Za-z]+(?:'[A-Za-z]+)?", text)
+    words = [word for word in words if len(word) > 1 or word.lower() in {'a', 'i'}]
+    return ' '.join(words)
+
+
+def extract_text_from_image(filepath):
+    with Image.open(filepath) as image:
+        gray, binary = preprocess_image_for_ocr(image)
+
+    candidates = []
+    configs = [
+        '--oem 3 --psm 6',
+        '--oem 3 --psm 3',
+        '--oem 3 --psm 11',
+    ]
+    for img in (gray, binary):
+        for config in configs:
+            try:
+                text = pytesseract.image_to_string(img, config=config)
+            except Exception:
+                text = ''
+            cleaned_text = clean_ocr_text((text or '').strip())
+            if cleaned_text:
+                candidates.append(cleaned_text)
+
+    if not candidates:
+        return ''
+    return max(candidates, key=lambda item: (len(item.split()), len(item)))
+
+
 @app.route("/")
 def home():
     return render_template("index.html")
@@ -201,10 +264,26 @@ def upload():
     if not allowed_file(file.filename):
         return jsonify({"message": "File type not allowed"}), 400
 
-    # Save the file
-    filename = secure_filename(file.filename)
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    file.save(filepath)
+    # Save the file (convert HEIC/HEIF to JPG for browser compatibility)
+    original_filename = secure_filename(file.filename)
+    ext = original_filename.rsplit('.', 1)[1].lower()
+
+    if ext in {'heic', 'heif'}:
+        if not HEIF_ENABLED:
+            return jsonify({
+                "message": "HEIC/HEIF support is not enabled. Install pillow-heif and restart the app."
+            }), 400
+        filename = make_unique_filename(f"{os.path.splitext(original_filename)[0]}.jpg")
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        try:
+            image = Image.open(file.stream)
+            image.convert('RGB').save(filepath, format='JPEG', quality=95)
+        except Exception as e:
+            return jsonify({"message": f"Failed to convert HEIC/HEIF image: {e}"}), 400
+    else:
+        filename = make_unique_filename(original_filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
 
     # Build metadata
     title = request.form.get('title', '').strip()
@@ -216,8 +295,7 @@ def upload():
     # Extract text from image using OCR
     ocr_text = ""
     try:
-        img = Image.open(filepath)
-        ocr_text = pytesseract.image_to_string(img)
+        ocr_text = extract_text_from_image(filepath)
     except Exception as e:
         print(f"OCR failed for {filename}: {e}")
         ocr_text = ""
@@ -429,6 +507,6 @@ def delete_image(filename):
 
 
 if __name__ == "__main__":
-    port = int(os.getenv('PORT', '5000'))
+    port = int(os.getenv('PORT', '5051'))
     host = os.getenv('HOST', '127.0.0.1')
     app.run(debug=True, host=host, port=port)
