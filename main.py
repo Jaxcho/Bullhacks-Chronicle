@@ -2,8 +2,11 @@ from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 import os
 import json
+import math
+import re
 from datetime import datetime
 from pathlib import Path
+from collections import Counter
 import pytesseract
 from PIL import Image
 from dotenv import load_dotenv
@@ -17,7 +20,7 @@ app = Flask(__name__)
 
 # Configuration
 UPLOAD_FOLDER = 'uploads'
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'heic'}
 METADATA_FILE = os.path.join(UPLOAD_FOLDER, 'metadata.json')
 
 # Create uploads folder if it doesn't exist
@@ -47,8 +50,77 @@ def save_metadata(data):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
+def tokenize_text(text):
+    if not text:
+        return []
+    return [tok for tok in re.findall(r"[a-z0-9]+", text.lower()) if len(tok) > 2]
+
+
+def entry_text_blob(filename, entry):
+    parts = [
+        filename,
+        entry.get('title', ''),
+        ' '.join(entry.get('tags', []) or []),
+        entry.get('summary', ''),
+        entry.get('extracted_text', ''),
+    ]
+    return ' '.join(p for p in parts if p)
+
+
+def cosine_similarity(text_a, text_b):
+    tokens_a = tokenize_text(text_a)
+    tokens_b = tokenize_text(text_b)
+    if not tokens_a or not tokens_b:
+        return 0.0
+
+    vec_a = Counter(tokens_a)
+    vec_b = Counter(tokens_b)
+    intersection = set(vec_a.keys()) & set(vec_b.keys())
+    dot = sum(vec_a[token] * vec_b[token] for token in intersection)
+    norm_a = math.sqrt(sum(value * value for value in vec_a.values()))
+    norm_b = math.sqrt(sum(value * value for value in vec_b.values()))
+    if norm_a == 0 or norm_b == 0:
+        return 0.0
+    return dot / (norm_a * norm_b)
+
+
+def get_related_entries(filename, metadata, limit=5):
+    if filename not in metadata:
+        return []
+
+    target = metadata[filename]
+    target_blob = entry_text_blob(filename, target)
+    target_tags = set((target.get('tags') or []))
+
+    related = []
+    for other_filename, other_entry in metadata.items():
+        if other_filename == filename:
+            continue
+
+        other_blob = entry_text_blob(other_filename, other_entry)
+        text_score = cosine_similarity(target_blob, other_blob)
+
+        other_tags = set((other_entry.get('tags') or []))
+        union = target_tags | other_tags
+        tag_score = (len(target_tags & other_tags) / len(union)) if union else 0.0
+
+        score = (0.85 * text_score) + (0.15 * tag_score)
+        if score <= 0:
+            continue
+
+        related.append({
+            'filename': other_filename,
+            'title': other_entry.get('title') or other_filename,
+            'date': other_entry.get('date') or (other_entry.get('uploaded_at', '')[:10]),
+            'score': round(score, 4),
+        })
+
+    related.sort(key=lambda item: item['score'], reverse=True)
+    return related[:limit]
+
+
 def generate_summary_from_text(text):
-    model = os.getenv('OLLAMA_MODEL', 'llama3.1').strip() or 'llama3.1'
+    model = os.getenv('OLLAMA_MODEL', 'gemma3:1b').strip() or 'gemma3:1b'
     fallback_models_raw = os.getenv('OLLAMA_MODEL_FALLBACKS', 'qwen2.5:7b,phi3:mini')
     fallback_models = [m.strip() for m in fallback_models_raw.split(',') if m.strip()]
     candidate_models = []
@@ -298,7 +370,8 @@ def image_detail(filename):
     if filename not in metadata:
         return "Not found", 404
     entry = metadata[filename]
-    return render_template('image.html', filename=filename, entry=entry)
+    related_entries = get_related_entries(filename, metadata)
+    return render_template('image.html', filename=filename, entry=entry, related_entries=related_entries)
 
 
 @app.route('/image/<filename>/summarize', methods=['POST'])

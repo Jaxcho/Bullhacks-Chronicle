@@ -1,12 +1,32 @@
 {
   "Screenshot_2026-02-26_at_11.11.58.png": {
-    "title": "idk",
+    "title": "coding",
     "tags": [],
     "comments": [],
     "extracted_text": "CG\n\n)\n3\n\nx\n\nEXPLORER\n\n\\ FLASK-POSTMAN-REVIEW\n\nv wvenv\n\n> bin\n\n> include\n\n> lib\n\n.gitignore\n\n© pyvenv.cfg\n> .vscode\nY templates\n\n<> index.html\n\n®@ site.py\n\n> OUTLINE\n> TIMELINE\n\n2 main 6) @oA1\n\nsite.py — Flask-Postman-review\n\n5 | Welcome @ site py 1 X <> index.html\n\n® site.py > © home\n\n1 from flask import Flask, render_template, request, jsonify\n2\n3 app = Flask(__name_)\n4\n5\n6 @app. route('/', methods=['GET', ‘POST'])\n7 def home():\n8 if request.method == 'POST':\n9 user_input = request. form.get('user_input', '')\n()) return render_template('index.html', submitted=user_input)\n11 return render_template('index.html', submitted=None)\n2\n3\n4 @app. route('/api/data', methods=['GET', ‘POST'])\n5 def api_data():\n6 if request.method == 'POST':\n7 data = request.get_json(silent=True)\n8 return jsonify({'message': ‘Data received', ‘data': data}), 200\n9 return jsonify({'message': 'Hello from API'}), 200\n20\n21\n22 if __name__ == '_main_':\n23 app. run(debug=True)\nPROBLEMS @ OUTPUT  DEBUGCONSOLE -- Filter (e.g. text, !exclu... Code\n\nVE Qe | O\n\nGenerate code (#I), or select a language (#K M). Start typing to dismiss or don't show this again.\n\n© Jaxcho (20 hours ago)\n\nLn11,Col57 Spaces:4 UTF-8\n\nCHAT + +yv 8 -- | 13 x\n\nSESSIONS Gar\n\nHosting a Flask Site Locally with Postman\nCompleted in 44s. © 22 hrs ago\n\nLF\n\nQ + ® site.py\nDescribe what to build next\n\nQvy Oy GPT-5miniv fh >\n\n{} Python &Q Python3.9.6 @=——\n\n",
-    "uploaded_at": "2026-02-28T23:02:54.289049Z",
-    "summary": "Here’s a concise summary of the OCR text in bullet points:\n\n*   **Flask-Postman-Review:** This is a Flask application using Postman for review and management.\n*   **Code Generation:** The script is designed to generate code, likely for a Flask web application.\n*   **Site Development:** The application is set up to host a Flask web site locally.\n*   **Basic Structure:** It includes a Flask app, a route for the homepage, and a route for an API endpoint.\n*   **API Endpoint:** The API endpoint `/api/data` receives JSON data and returns a success message.\n*   **Basic Framework:** The code utilizes Flask for the web application and includes a `site.py` file for the project's configuration.",
+    "uploaded_at": "2026-03-01T00:25:48.229786Z",
+    "summary": "Here’s a concise summary of the journal entry in 2-3 bullet points:\n\n*   **Flask Application Development:** The entry describes building a Flask web application to receive user input via a POST request and display data via a GET request.\n*   **Route Setup:** It defines routes for both `/` (homepage) and `/api/data` (API endpoint).\n*   **Data Handling:** The `/api/data` route expects JSON data in the request, and it returns a JSON response with a 'message' and 'data' key.",
     "summary_model": "gemma3:1b",
-    "summary_generated_at": "2026-02-28T23:59:55.100330Z"
+    "summary_generated_at": "2026-03-01T00:25:48.229826Z"
+  },
+  "Screenshot_2026-02-25_at_13.07.00.png": {
+    "title": "set",
+    "tags": [],
+    "comments": [],
+    "extracted_text": "ese www xX |) @ How x fr Deve x | @ Train x © Train x > Com x Jaxc) xX Host x  ( unti x @ 405 x @ 4151 x  Setv xX +\n\n€ > GA 23 setwithfriends.com/game/unnatural-yielding-wax-1 bX¢ oo Cf @ 4\n\nSet with Friends Anonymous Mouse §Q2 {e} &\n\nGame Chat\nSet found by Anonymous Mouse\n\n> |L 22 | (008\n\nSet found by Anonymous Mouse\n\ni] (0) [ae <>\n\nSet found by Anonymous Mouse\n\n068) [222] 600\nSet found by Anonymous Mouse (Q) 0} 1 : 1 8 . 87\n44 || 09 | [00\nSet found by Anonymous Mouse Scoreboard\n% } (00 | [LUZ\nSet found by Anonymous Mouse\naie ee\nSet found by Anonymous Mouse\nU | 00 } {000\nSet found by Anonymous Mouse\n\n4 |(Q00}| 22\n\nType a message...\n\n(1482, Anonymous Mouse 24\n\nThe game has ended.\n\nWinner: Anonymous Mouse\n\nPLAY AGAIN\n“ith\n\n000\n\ncu\n<— || GD\ncu\n\n0 cards remaining in the deck\n\n",
+    "uploaded_at": "2026-03-01T00:25:12.294968Z",
+    "summary": "Here’s a concise summary of the journal entry in bullet points:\n\n*   **Game Session:** The entry details a game session focused on a “Unnatural Yielding Wax” game, likely with the player “Anonymous Mouse” and “Set with Friends Anonymous Mouse”.\n*   **Game Progress:** The game is currently in a state where the score is being tracked and the game has concluded with a winner (Anonymous Mouse).\n*   **Game Context:** The game has a scoreboard displaying remaining cards.\n\nLet me know if you'd like me to elaborate on any of these points!",
+    "summary_model": "gemma3:1b",
+    "summary_generated_at": "2026-03-01T00:25:12.294990Z"
+  },
+  "Screenshot_2026-02-26_at_11.11.59.png": {
+    "title": "c",
+    "tags": [],
+    "comments": [],
+    "extracted_text": "@ Code File Edit Selection View Go Run Terminal Window Help ~~ OW €& © ©) F QS ThuFeb 26 11:11:59\nr ) r ) site.py — Flask-Postman-review\nG EXPLORER ++ J Welcome ® sitepy 1X <> index.html Dy * oe CHAT = +y 8 + | 03 x\nVv FLASK-POSTMAN-REVIEW ®@ site.py > © home SESSIONS CGCQaePr\nQ Vv venv ; from flask import Flask, render_template, request, jsonify Hosting a Flask Site Locally with Postman\n> bin i\n3 ana © Fleskd(_aemea_) Completed in 44s. © 22 hrs ago\n$9 > include 4\n> lib 5\nS .gitignore 6 @app. route('/', methods=['GET', ‘POST']) —\nx %& pyvenv.cfg 7 def home():\n8 if request.method == 'POST':\n> .vscode : .\nCe 9 user_input = request. form.get('user_input', '')\n© — ~ templates () return render_template('index.html', submitted=user_input)\n<> index.html 11 return render_template('index.html', submitted=None)\nB ®@ site.py 1 2\n3\n4 @app. route('/api/data', methods=['GET', ‘POST'])\npa 5 def api_data():\n6 if request.method == 'POST':\n@ 7 data = request.get_json(silent=True)\n8 return jsonify({'message': ‘Data received', ‘data': data}), 200\ni) return jsonify({'message': ‘Hello from API'}), 200\n—\na 20\n21\n22 if __name__ == '_main_':\n23 app. run(debug=True)\nPROBLEMS @ OUTPUT  DEBUGCONSOLE -- Filter (e.g. text, !exclu... Code V2 4+ |i x\nGenerate code (#I), or select a language (#K M). Start typing to dismiss or don't show this again. |\n\nQ + ® site.py\n\n2) Describe what to b=\n\n$63 > OUTLINE Qvy Dy Gopt-dsminiv $8 3\n> TIMELINE\n\nx mand WCoA1 © Jaxcho (20 hours ago) Ln11,Col57 Spaces:4 UTF-8 LF {} Python @&Q Python3.9.6 @=——\n",
+    "uploaded_at": "2026-03-01T00:26:18.881748Z",
+    "summary": "Here’s a concise summary of the journal entry in bullet points:\n\n*   The text describes a Flask application being developed locally using Postman for a simple website project.\n*   It includes a route for handling both GET and POST requests, and a basic API endpoint for data retrieval.\n*   The code defines a `home()` function that retrieves user input and renders an `index.html` template.\n*   The code is being run in debug mode.",
+    "summary_model": "gemma3:1b",
+    "summary_generated_at": "2026-03-01T00:26:18.881835Z"
   }
 }
