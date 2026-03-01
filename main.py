@@ -59,8 +59,8 @@ def generate_summary_from_text(text):
     base_url = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434').strip().rstrip('/')
     endpoint = f'{base_url}/api/generate'
     prompt = (
-        'You summarize OCR text from historical images. '
-        'Return a concise summary in 3-5 bullet points.\n\n'
+        'This image is of a past journal entry'
+        'Return a concise summary in 2-3 bullet points.\n\n'
         f'OCR text:\n{text}'
     )
     last_model_error = None
