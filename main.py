@@ -322,6 +322,7 @@ def build_theme_network(metadata):
     theme_to_entries = {}
     entry_link_strength = {}
     shared_attribute_count = {}
+    entry_pair_edges = {}
 
     for filename, entry in metadata.items():
         text = pick_entry_text(entry)
@@ -388,8 +389,49 @@ def build_theme_network(metadata):
             edge['label'] = f"{score:.2f}"
             edge['font'] = {'size': 10, 'color': '#9fb3ff'}
         edges.append(edge)
+        pair_key = tuple(sorted((file_a, file_b)))
+        entry_pair_edges[pair_key] = edge
         entry_link_strength[file_a] += score
         entry_link_strength[file_b] += score
+
+    # Ensure there are always visible bridge links between entries.
+    def _entry_sort_key(name):
+        parsed = parse_entry_datetime(metadata.get(name, {}))
+        return (parsed.timestamp() if parsed else float('inf'), name)
+
+    ordered_filenames = sorted(metadata.keys(), key=_entry_sort_key)
+    if len(ordered_filenames) > 1:
+        for left_name, right_name in zip(ordered_filenames, ordered_filenames[1:]):
+            pair_key = tuple(sorted((left_name, right_name)))
+            existing_edge = entry_pair_edges.get(pair_key)
+            if existing_edge:
+                existing_edge['width'] = max(float(existing_edge.get('width', 1.0)), 2.8)
+                existing_edge['value'] = max(float(existing_edge.get('value', 0.1)), 1.2)
+                existing_edge['color'] = {'color': '#38bdf8', 'opacity': 0.85}
+                existing_edge['bridge'] = True
+            else:
+                bridge_edge = {
+                    'from': f'entry:{left_name}',
+                    'to': f'entry:{right_name}',
+                    'value': 1.2,
+                    'width': 2.8,
+                    'color': {'color': '#38bdf8', 'opacity': 0.85},
+                    'bridge': True,
+                }
+                edges.append(bridge_edge)
+                entry_pair_edges[pair_key] = bridge_edge
+
+    # Scale theme node size by how many unique entries each theme appears in.
+    for theme_id, filenames in theme_to_entries.items():
+        node = theme_nodes.get(theme_id)
+        if not node:
+            continue
+        entry_count = len(filenames)
+        node['entry_count'] = entry_count
+        node['value'] = round(min(46, max(10, 10 + (entry_count - 1) * 5.5)), 2)
+        label = node.get('label', 'Theme')
+        entry_label = 'entry' if entry_count == 1 else 'entries'
+        node['title'] = f"{label} · appears in {entry_count} {entry_label}"
 
     # Boost entry node size when it shares themes with multiple entries and has strong mutual links.
     for theme_id, filenames in theme_to_entries.items():
