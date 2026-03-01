@@ -43,22 +43,6 @@
     "summary_model": "gemma3:1b",
     "summary_generated_at": "2026-03-01T01:36:52.445620Z"
   },
-  "IMG_4234.jpg": {
-    "title": "Mahtab Advisory",
-    "tags": [
-      "advisory",
-      "mission",
-      "honesty",
-      "advisory",
-      "respect"
-    ],
-    "comments": [],
-    "extracted_text": "NN eQOW cine Honor Cocke oecause we Warr FO preserve Our orademic nonestu inteoqriry Orc TO respect our Feacners bad HUY PLOTS FAChHOtNersS ime MONSDY In Going this Ne CLEA Sake COMMUN ITU that eEMPOWRS es MeMpeIS TO leary Grol Montrail a dvisovy Ne",
-    "uploaded_at": "2026-03-01T01:46:39.287269Z",
-    "summary": "Okay, here’s a summary of the journal entry, aiming for a natural, human-sounding tone: “On Monday, Professor Cocke wrote about a particularly intense period of research focused on a specific set of historical documents. He expressed concern about the potential impact of these documents on the university’s existing academic environment and emphasized the importance of preserving these historical records.”",
-    "summary_model": "gemma3:1b",
-    "summary_generated_at": "2026-03-01T01:46:39.287297Z"
-  },
   "IMG_4234_1.jpg": {
     "title": "Mahtab Advisory",
     "tags": [
@@ -74,5 +58,19 @@
     "summary": "Okay, here’s a summary of the journal entry, aiming for a natural and human-sounding tone: The entry details a significant meeting regarding preserving the university’s history and its connection to a specific set of past events. The group discussed the importance of acknowledging and honoring these “bad HUY PLOTS” – a complex and potentially sensitive element of the past – to ensure future generations understand the context of the university. It seems the meeting centered around a need to reconcile with these historical elements.",
     "summary_model": "gemma3:1b",
     "summary_generated_at": "2026-03-01T01:46:48.931601Z"
+  },
+  "IMG_3148.jpg": {
+    "title": "Teens who care",
+    "tags": [
+      "mission",
+      "nonprofit"
+    ],
+    "comments": [],
+    "extracted_text": "he RAAB NEE MULADSS WVUITTETT ana een Action Working with RTEBN through Teens Who Care has shown me how youth led giving supports real housing solutions Local nonprofits rely on small grants and volunteer efforts to keep vulnerable families safely housed Teens can play a meaningful role by funding ae repairs spreading awareness volunteering and me advocating for stronger housing support in their a communities ie An nee oS Se eee Teens Who Retin Mm Care QRCode Fenda",
+    "uploaded_at": "2026-03-01T01:58:11.540346Z",
+    "summary": "Muladss, a local youth volunteer, recently connected with RTEB to help address housing insecurity for vulnerable families. They’re working with teens to fund repairs, raise awareness, and advocate for better housing support within their community. This initiative highlights the vital role young people can play in creating a safer and more stable environment for those in need.",
+    "summary_model": "gemma3:1b",
+    "summary_generated_at": "2026-03-01T01:58:11.540440Z",
+    "date": "2026-02-04"
   }
 }

@@ -12,7 +12,7 @@
 
 <div class="timeline-horizontal">
     {% for img in items %}
-    <div class="timeline-node">
+    <div class="timeline-node" data-gap="{{ img._gap_px or 0 }}">
         <div class="timeline-date">{{ img.date or img.uploaded_at[:10] }}</div>
         <div class="timeline-dot" aria-hidden="true"></div>
         <div class="timeline-card">
@@ -36,24 +36,30 @@
 <script id="timeline-events" type="application/json">{{ events | tojson }}</script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+    document.querySelectorAll('.timeline-node').forEach(node => {
+        const gap = Number(node.dataset.gap || '0');
+        node.style.setProperty('--gap', `${gap}px`);
+        node.style.marginLeft = `${gap}px`;
+    });
+
     const eventsRaw = document.getElementById('timeline-events');
     const events = eventsRaw ? JSON.parse(eventsRaw.textContent || '[]') : [];
 
     if (events.length > 0) {
         const ctx = document.getElementById('timelineChart').getContext('2d');
+        const points = events.map((e, i) => ({ x: Number(e.day || i), y: i + 1, event: e.event, date: e.date }));
         new Chart(ctx, {
             type: 'line',
             data: {
-                labels: events.map(e => e.date),
                 datasets: [{
                     label: 'Your Life Events',
-                    data: events.map((_, i) => i + 1),
+                    data: points,
                     borderColor: '#80ffdb',
                     backgroundColor: '#80ffdb',
                     borderWidth: 3,
                     pointRadius: 5,
                     pointHoverRadius: 7,
-                    tension: 0.35
+                    tension: 0
                 }]
             },
             options: {
@@ -64,13 +70,15 @@
                     tooltip: {
                         callbacks: {
                             label: function(context) {
-                                return events[context.dataIndex].event;
+                                const point = points[context.dataIndex];
+                                return `${point.date}: ${point.event}`;
                             }
                         }
                     }
                 },
                 scales: {
                     x: {
+                        type: 'linear',
                         ticks: { color: '#cbd5e1' },
                         grid: { color: 'rgba(148,163,184,0.25)' }
                     },

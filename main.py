@@ -135,6 +135,25 @@ def get_related_entries(filename, metadata, limit=5):
     return related[:limit]
 
 
+def parse_entry_datetime(entry):
+    date_str = (entry.get('date') or '').strip()
+    if date_str:
+        try:
+            return datetime.strptime(date_str, '%Y-%m-%d')
+        except Exception:
+            pass
+
+    uploaded_at = (entry.get('uploaded_at') or '').strip()
+    if uploaded_at:
+        try:
+            normalized = uploaded_at.replace('Z', '+00:00')
+            return datetime.fromisoformat(normalized)
+        except Exception:
+            pass
+
+    return None
+
+
 def generate_summary_from_text(text):
     model = os.getenv('OLLAMA_MODEL', 'gemma3:1b').strip() or 'gemma3:1b'
     fallback_models_raw = os.getenv('OLLAMA_MODEL_FALLBACKS', 'qwen2.5:7b,phi3:mini')
@@ -295,24 +314,30 @@ def extract_entry_themes(text, tags):
 
 
 def build_theme_network(metadata):
-    entry_nodes = []
+    entry_nodes = {}
     theme_nodes = {}
     edges = []
     entry_vectors = {}
     entry_texts = {}
+    theme_to_entries = {}
+    entry_link_strength = {}
+    shared_attribute_count = {}
 
     for filename, entry in metadata.items():
         text = pick_entry_text(entry)
         entry_texts[filename] = text
-        entry_nodes.append({
-            'id': f'entry:{filename}',
+        entry_id = f'entry:{filename}'
+        entry_nodes[entry_id] = {
+            'id': entry_id,
             'label': entry.get('title') or filename,
             'group': 'entry',
             'shape': 'dot',
             'value': 18,
             'title': filename,
             'filename': filename,
-        })
+        }
+        entry_link_strength[filename] = 0.0
+        shared_attribute_count[filename] = 0
 
         try:
             embedding = call_ollama_embedding(text) if text else None
@@ -338,6 +363,7 @@ def build_theme_network(metadata):
                 'width': 1.2,
                 'color': {'opacity': 0.55},
             })
+            theme_to_entries.setdefault(theme_id, set()).add(filename)
 
     similarity_threshold = float(os.getenv('NETWORK_SIM_THRESHOLD', '0.52'))
     for file_a, file_b in combinations(metadata.keys(), 2):
@@ -348,19 +374,43 @@ def build_theme_network(metadata):
         else:
             score = cosine_similarity(entry_texts.get(file_a, ''), entry_texts.get(file_b, ''))
 
-        if score >= similarity_threshold:
-            edge_width = round(3.0 + (score * 10.0), 2)
-            edges.append({
-                'from': f'entry:{file_a}',
-                'to': f'entry:{file_b}',
-                'value': round(score * 2.2, 3),
-                'width': edge_width,
-                'label': f"{score:.2f}",
-                'font': {'size': 10, 'color': '#9fb3ff'},
-                'color': {'color': '#80ffdb', 'opacity': 0.65},
-            })
+        is_strong = score >= similarity_threshold
+        edge_width = round(0.8 + (score * 11.0), 2)
+        edge_color = {'color': '#80ffdb', 'opacity': 0.75} if is_strong else {'color': '#94a3b8', 'opacity': 0.22}
+        edge = {
+            'from': f'entry:{file_a}',
+            'to': f'entry:{file_b}',
+            'value': round(max(0.05, score * 2.2), 3),
+            'width': edge_width,
+            'color': edge_color,
+        }
+        if is_strong:
+            edge['label'] = f"{score:.2f}"
+            edge['font'] = {'size': 10, 'color': '#9fb3ff'}
+        edges.append(edge)
+        entry_link_strength[file_a] += score
+        entry_link_strength[file_b] += score
 
-    nodes = entry_nodes + list(theme_nodes.values())
+    # Boost entry node size when it shares themes with multiple entries and has strong mutual links.
+    for theme_id, filenames in theme_to_entries.items():
+        if len(filenames) < 2:
+            continue
+        shared_boost = min(5.0, (len(filenames) - 1) * 1.2)
+        for filename in filenames:
+            shared_attribute_count[filename] += 1
+            entry_link_strength[filename] += shared_boost
+
+    for filename, strength in entry_link_strength.items():
+        entry_id = f'entry:{filename}'
+        if entry_id not in entry_nodes:
+            continue
+        attribute_bonus = shared_attribute_count.get(filename, 0) * 2.4
+        scaled_value = 18 + (strength * 3.6) + attribute_bonus
+        entry_nodes[entry_id]['value'] = round(min(54, max(16, scaled_value)), 2)
+        entry_nodes[entry_id]['has_shared_attribute'] = shared_attribute_count.get(filename, 0) > 0
+        entry_nodes[entry_id]['shared_attribute_count'] = shared_attribute_count.get(filename, 0)
+
+    nodes = list(entry_nodes.values()) + list(theme_nodes.values())
     return {'nodes': nodes, 'edges': edges}
 
 
@@ -572,21 +622,40 @@ def timeline_page():
     for fn, entry in metadata.items():
         e = dict(entry)
         e['filename'] = fn
-        # use 'date' if present else uploaded_at
-        d = e.get('date') or e.get('uploaded_at', '')[:10]
-        e['_sort_date'] = d
+        dt = parse_entry_datetime(e)
+        e['_timeline_dt'] = dt
+        e['_sort_ts'] = dt.timestamp() if dt else float('inf')
         items.append(e)
     # sort chronologically ascending
     try:
-        items.sort(key=lambda x: x.get('_sort_date', ''))
+        items.sort(key=lambda x: x.get('_sort_ts', float('inf')))
     except Exception:
         pass
+
+    first_dt = None
+    for item in items:
+        if item.get('_timeline_dt'):
+            first_dt = item['_timeline_dt']
+            break
+
+    prev_dt = None
+    for item in items:
+        dt = item.get('_timeline_dt')
+        if dt and prev_dt:
+            diff_days = max(0, (dt.date() - prev_dt.date()).days)
+            gap_px = min(220, int(diff_days * 3.2))
+        else:
+            gap_px = 0
+        item['_gap_px'] = gap_px
+        prev_dt = dt if dt else prev_dt
+
     events = [
         {
             'date': img.get('date') or img.get('uploaded_at', '')[:10],
-            'event': img.get('title') or img.get('filename')
+            'event': img.get('title') or img.get('filename'),
+            'day': ((img['_timeline_dt'].date() - first_dt.date()).days if img.get('_timeline_dt') and first_dt else idx)
         }
-        for img in items
+        for idx, img in enumerate(items)
     ]
     return render_template("timeline.html", items=items, events=events)
 

@@ -26,7 +26,9 @@
             ...node,
             color: node.group === 'theme'
                 ? { background: '#4ea8de', border: '#80ffdb', highlight: { background: '#80ffdb', border: '#80ffdb' } }
-                : { background: '#5e60ce', border: '#c7d2fe', highlight: { background: '#a5b4fc', border: '#c7d2fe' } },
+                : (node.has_shared_attribute
+                    ? { background: '#f59e0b', border: '#fde68a', highlight: { background: '#fbbf24', border: '#fde68a' } }
+                    : { background: '#5e60ce', border: '#c7d2fe', highlight: { background: '#a5b4fc', border: '#c7d2fe' } }),
             font: { color: '#f8fafc', size: 13, face: 'Inter' }
         })));
         const edges = new vis.DataSet(graphData.edges);
