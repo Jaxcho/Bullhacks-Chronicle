@@ -6,8 +6,8 @@ from datetime import datetime
 from pathlib import Path
 import pytesseract
 from PIL import Image
-from google import genai
 from dotenv import load_dotenv
+from urllib import request as urlrequest, error as urlerror
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 ENV_FILE = PROJECT_ROOT / '.env'
@@ -48,48 +48,60 @@ def save_metadata(data):
 
 
 def generate_summary_from_text(text):
-    api_key = os.getenv('AIzaSyD6iMnwYrPsBJNr9GShpfWBlwv-qsFQ8vA', '').strip()
-    if not api_key:
-        if not ENV_FILE.exists():
-            raise ValueError('GENAI_API_KEY is not configured. Missing .env file. Create it with: cp .env.example .env')
-        raise ValueError('GENAI_API_KEY is not configured in .env')
-
-    model = os.getenv('GENAI_MODEL', 'gemini-2.0-flash').strip() or 'gemini-2.0-flash'
-    fallback_models_raw = os.getenv('GENAI_MODEL_FALLBACKS', 'gemini-1.5-flash')
+    model = os.getenv('OLLAMA_MODEL', 'llama3.1').strip() or 'llama3.1'
+    fallback_models_raw = os.getenv('OLLAMA_MODEL_FALLBACKS', 'qwen2.5:7b,phi3:mini')
     fallback_models = [m.strip() for m in fallback_models_raw.split(',') if m.strip()]
     candidate_models = []
     for candidate in [model, *fallback_models]:
         if candidate not in candidate_models:
             candidate_models.append(candidate)
 
-    client = genai.Client(api_key=api_key)
-    last_permission_error = None
+    base_url = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434').strip().rstrip('/')
+    endpoint = f'{base_url}/api/generate'
+    prompt = (
+        'You summarize OCR text from historical images. '
+        'Return a concise summary in 3-5 bullet points.\n\n'
+        f'OCR text:\n{text}'
+    )
+    last_model_error = None
 
     for candidate_model in candidate_models:
         try:
-            prompt = (
-                'You summarize OCR text from historical images. '
-                'Return a concise summary in 3-5 bullet points.\n\n'
-                f'OCR text:\n{text}'
+            payload = json.dumps({
+                'model': candidate_model,
+                'prompt': prompt,
+                'stream': False
+            }).encode('utf-8')
+            req = urlrequest.Request(
+                endpoint,
+                data=payload,
+                headers={'Content-Type': 'application/json'},
+                method='POST'
             )
-            response = client.models.generate_content(
-                model=candidate_model,
-                contents=prompt,
-            )
-            summary = (getattr(response, 'text', None) or '').strip()
+            with urlrequest.urlopen(req, timeout=120) as response:
+                body = response.read().decode('utf-8', errors='replace')
+            result = json.loads(body) if body else {}
+            summary = (result.get('response') or '').strip()
             if not summary:
                 raise ValueError('No summary returned by model')
             return summary, candidate_model
-        except Exception as e:
-            error_text = str(e).lower()
-            if '403' in error_text or 'permission' in error_text or 'forbidden' in error_text:
-                last_permission_error = e
+        except urlerror.HTTPError as e:
+            error_body = e.read().decode('utf-8', errors='replace') if hasattr(e, 'read') else ''
+            error_text = error_body.lower()
+            if e.code == 404 or 'not found' in error_text:
+                last_model_error = e
                 continue
-            raise
+            raise ValueError(f'Ollama request failed ({e.code}): {error_body or e.reason}')
+        except urlerror.URLError as e:
+            raise ConnectionError(
+                f'Cannot connect to Ollama at {base_url}. Start it with: ollama serve'
+            ) from e
 
     tried_models = ', '.join(candidate_models)
-    if last_permission_error:
-        raise PermissionError(f'No accessible GenAI model. Tried: {tried_models}. Last error: {last_permission_error}')
+    if last_model_error:
+        raise ValueError(
+            f'No available Ollama model. Tried: {tried_models}. Pull one first, e.g.: ollama pull {model}'
+        )
     raise ValueError(f'No model available to generate summary. Tried: {tried_models}')
 
 
@@ -303,14 +315,16 @@ def summarize_image(filename):
         summary, used_model = generate_summary_from_text(extracted_text)
     except PermissionError as e:
         return jsonify({'message': str(e)}), 403
+    except ConnectionError as e:
+        return jsonify({'message': str(e)}), 503
     except ValueError as e:
         return jsonify({'message': str(e)}), 500
     except Exception as e:
         error_text = str(e).lower()
-        if '401' in error_text or 'invalid api key' in error_text or 'authentication' in error_text or 'unauthenticated' in error_text:
-            return jsonify({'message': 'GenAI authentication failed. Check GENAI_API_KEY.'}), 401
-        if '403' in error_text or 'permission' in error_text or 'access denied' in error_text or 'forbidden' in error_text:
-            return jsonify({'message': 'GenAI access denied for this model/project. Try a different model or check project permissions.'}), 403
+        if 'cannot connect to ollama' in error_text or 'connection refused' in error_text:
+            return jsonify({'message': 'Cannot connect to Ollama. Start it with: ollama serve'}), 503
+        if 'no available ollama model' in error_text or 'pull one first' in error_text:
+            return jsonify({'message': str(e)}), 500
         return jsonify({'message': f'Failed to generate summary: {e}'}), 500
 
     metadata[filename]['summary'] = summary
