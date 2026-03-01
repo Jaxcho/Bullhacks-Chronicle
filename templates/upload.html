@@ -3,8 +3,10 @@
 {% block title %}Upload Image{% endblock %}
 
 {% block content %}
-    <h1>Upload an Image</h1>
-    
+    <h1 class="hero-title">🕰 Chronicle</h1>
+    <p class="hero-subtitle">Your Story in Time</p>
+
+    <div class="glass-container">
     <form id="uploadForm" enctype="multipart/form-data">
         <label for="title">Title</label>
         <input type="text" id="title" name="title" required />
@@ -15,16 +17,17 @@
         <label for="date">Date</label>
         <input type="date" id="date" name="date" />
 
-        <!-- Image input -->
+        <label for="imageInput" class="upload-box">📷 Drag & Drop or Click to Upload Your Journal Image</label>
         <input type="file" id="imageInput" name="image" accept="image/*" required />
         
         <!-- Submit button -->
-        <button type="submit">Upload Image</button>
+        <button type="submit">Upload & Add to Timeline</button>
     </form>
     
     <!-- Preview image (optional) -->
-    <img id="imagePreview" style="max-width: 300px; margin-top: 20px;" />
+    <img id="imagePreview" />
     <p id="uploadStatus"></p>
+    </div>
     
     <script>
         // Preview image before uploading

@@ -3,8 +3,13 @@
 {% block title %}Timeline{% endblock %}
 
 {% block content %}
-<h1>Timeline</h1>
+<h1 class="hero-title">🕰 Chronicle</h1>
+<p class="hero-subtitle">Your Story in Time</p>
 {% if items and items|length > 0 %}
+<div class="glass-container">
+    <canvas id="timelineChart" height="110"></canvas>
+</div>
+
 <div class="timeline-horizontal">
     {% for img in items %}
     <div class="timeline-node">
@@ -27,6 +32,57 @@
     </div>
     {% endfor %}
 </div>
+
+<script id="timeline-events" type="application/json">{{ events | tojson }}</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const eventsRaw = document.getElementById('timeline-events');
+    const events = eventsRaw ? JSON.parse(eventsRaw.textContent || '[]') : [];
+
+    if (events.length > 0) {
+        const ctx = document.getElementById('timelineChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: events.map(e => e.date),
+                datasets: [{
+                    label: 'Your Life Events',
+                    data: events.map((_, i) => i + 1),
+                    borderColor: '#80ffdb',
+                    backgroundColor: '#80ffdb',
+                    borderWidth: 3,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    tension: 0.35
+                }]
+            },
+            options: {
+                plugins: {
+                    legend: {
+                        labels: { color: '#f8fafc' }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return events[context.dataIndex].event;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: '#cbd5e1' },
+                        grid: { color: 'rgba(148,163,184,0.25)' }
+                    },
+                    y: {
+                        display: false,
+                        grid: { color: 'rgba(148,163,184,0.2)' }
+                    }
+                }
+            }
+        });
+    }
+</script>
 {% else %}
 <p>No timeline entries yet.</p>
 {% endif %}

@@ -5,6 +5,7 @@ import json
 import math
 import re
 import importlib
+from itertools import combinations
 from datetime import datetime
 from pathlib import Path
 from collections import Counter
@@ -105,6 +106,7 @@ def get_related_entries(filename, metadata, limit=5):
     target_summary = entry_summary_text(target)
     if not target_summary:
         return []
+    target_tags = set(tag.lower() for tag in (target.get('tags') or []) if tag)
 
     related = []
     for other_filename, other_entry in metadata.items():
@@ -112,7 +114,13 @@ def get_related_entries(filename, metadata, limit=5):
             continue
 
         other_summary = entry_summary_text(other_entry)
-        score = cosine_similarity(target_summary, other_summary)
+        summary_score = cosine_similarity(target_summary, other_summary)
+
+        other_tags = set(tag.lower() for tag in (other_entry.get('tags') or []) if tag)
+        union = target_tags | other_tags
+        tag_score = (len(target_tags & other_tags) / len(union)) if union else 0.0
+
+        score = (0.85 * summary_score) + (0.15 * tag_score)
         if score <= 0:
             continue
 
@@ -139,8 +147,10 @@ def generate_summary_from_text(text):
     base_url = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434').strip().rstrip('/')
     endpoint = f'{base_url}/api/generate'
     prompt = (
-        'This image is of a past journal entry'
-        'Return a concise summary in 2-3 bullet points.\n\n'
+        'You are summarizing a real journal entry for a timeline archive. '
+        'Write a natural, human-sounding summary in 2-3 sentences. '
+        'Use plain language. Avoid bullet points. '
+        'Do not say phrases like "Here is a summary", "The text says", or mention OCR.\n\n'
         f'OCR text:\n{text}'
     )
     last_model_error = None
@@ -162,6 +172,9 @@ def generate_summary_from_text(text):
                 body = response.read().decode('utf-8', errors='replace')
             result = json.loads(body) if body else {}
             summary = (result.get('response') or '').strip()
+            summary = re.sub(r'^(here\s*(is|\'s)\s*(a\s*)?(concise\s*)?summary\s*[:\-]?\s*)', '', summary, flags=re.IGNORECASE)
+            summary = re.sub(r'^(summary\s*[:\-]\s*)', '', summary, flags=re.IGNORECASE)
+            summary = re.sub(r'\s+', ' ', summary).strip()
             if not summary:
                 raise ValueError('No summary returned by model')
             return summary, candidate_model
@@ -183,6 +196,172 @@ def generate_summary_from_text(text):
             f'No available Ollama model. Tried: {tried_models}. Pull one first, e.g.: ollama pull {model}'
         )
     raise ValueError(f'No model available to generate summary. Tried: {tried_models}')
+
+
+def call_ollama_generate(prompt, timeout=90, model=None):
+    base_url = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434').strip().rstrip('/')
+    endpoint = f'{base_url}/api/generate'
+    used_model = (model or os.getenv('OLLAMA_MODEL', 'gemma3:1b')).strip() or 'gemma3:1b'
+    payload = json.dumps({
+        'model': used_model,
+        'prompt': prompt,
+        'stream': False,
+    }).encode('utf-8')
+    req = urlrequest.Request(
+        endpoint,
+        data=payload,
+        headers={'Content-Type': 'application/json'},
+        method='POST'
+    )
+    with urlrequest.urlopen(req, timeout=timeout) as response:
+        body = response.read().decode('utf-8', errors='replace')
+    result = json.loads(body) if body else {}
+    return (result.get('response') or '').strip()
+
+
+def call_ollama_embedding(text):
+    base_url = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434').strip().rstrip('/')
+    endpoint = f'{base_url}/api/embeddings'
+    embed_model = os.getenv('OLLAMA_EMBED_MODEL', 'nomic-embed-text').strip() or 'nomic-embed-text'
+    payload = json.dumps({
+        'model': embed_model,
+        'prompt': text,
+    }).encode('utf-8')
+    req = urlrequest.Request(
+        endpoint,
+        data=payload,
+        headers={'Content-Type': 'application/json'},
+        method='POST'
+    )
+    with urlrequest.urlopen(req, timeout=90) as response:
+        body = response.read().decode('utf-8', errors='replace')
+    result = json.loads(body) if body else {}
+    return result.get('embedding')
+
+
+def vector_cosine_similarity(vec_a, vec_b):
+    if not vec_a or not vec_b or len(vec_a) != len(vec_b):
+        return 0.0
+    dot = sum(a * b for a, b in zip(vec_a, vec_b))
+    norm_a = math.sqrt(sum(a * a for a in vec_a))
+    norm_b = math.sqrt(sum(b * b for b in vec_b))
+    if norm_a == 0 or norm_b == 0:
+        return 0.0
+    return dot / (norm_a * norm_b)
+
+
+def pick_entry_text(entry):
+    return (
+        (entry.get('summary') or '').strip()
+        or (entry.get('extracted_text') or '').strip()
+        or (entry.get('title') or '').strip()
+    )
+
+
+def keyword_themes_from_text(text, max_items=5):
+    stopwords = {
+        'the', 'and', 'for', 'that', 'with', 'this', 'from', 'your', 'into', 'have', 'has', 'was', 'were',
+        'is', 'are', 'but', 'not', 'you', 'its', 'their', 'them', 'about', 'there', 'then', 'than', 'they',
+    }
+    tokens = [tok for tok in tokenize_text(text) if tok not in stopwords]
+    counts = Counter(tokens)
+    return [token for token, _ in counts.most_common(max_items)]
+
+
+def extract_entry_themes(text, tags):
+    themes = [str(tag).strip().lower() for tag in (tags or []) if str(tag).strip()]
+    if text:
+        try:
+            prompt = (
+                'Extract 3 to 6 short theme labels from this journal entry text. '
+                'Return only a comma-separated list with no extra words.\n\n'
+                f'Text:\n{text}'
+            )
+            raw = call_ollama_generate(prompt, timeout=75)
+            parsed = [segment.strip().lower() for segment in raw.split(',') if segment.strip()]
+            themes.extend(parsed)
+        except Exception:
+            themes.extend(keyword_themes_from_text(text, max_items=5))
+    unique = []
+    seen = set()
+    for theme in themes:
+        cleaned = re.sub(r'[^a-z0-9\s\-]', '', theme).strip()
+        if len(cleaned) < 2:
+            continue
+        if cleaned not in seen:
+            seen.add(cleaned)
+            unique.append(cleaned)
+    return unique[:8]
+
+
+def build_theme_network(metadata):
+    entry_nodes = []
+    theme_nodes = {}
+    edges = []
+    entry_vectors = {}
+    entry_texts = {}
+
+    for filename, entry in metadata.items():
+        text = pick_entry_text(entry)
+        entry_texts[filename] = text
+        entry_nodes.append({
+            'id': f'entry:{filename}',
+            'label': entry.get('title') or filename,
+            'group': 'entry',
+            'shape': 'dot',
+            'value': 18,
+            'title': filename,
+            'filename': filename,
+        })
+
+        try:
+            embedding = call_ollama_embedding(text) if text else None
+        except Exception:
+            embedding = None
+        entry_vectors[filename] = embedding
+
+        themes = extract_entry_themes(text, entry.get('tags'))
+        for theme in themes:
+            theme_id = f'theme:{theme}'
+            if theme_id not in theme_nodes:
+                theme_nodes[theme_id] = {
+                    'id': theme_id,
+                    'label': theme,
+                    'group': 'theme',
+                    'shape': 'dot',
+                    'value': 10,
+                }
+            edges.append({
+                'from': f'entry:{filename}',
+                'to': theme_id,
+                'value': 1,
+                'width': 1.2,
+                'color': {'opacity': 0.55},
+            })
+
+    similarity_threshold = float(os.getenv('NETWORK_SIM_THRESHOLD', '0.52'))
+    for file_a, file_b in combinations(metadata.keys(), 2):
+        vec_a = entry_vectors.get(file_a)
+        vec_b = entry_vectors.get(file_b)
+        if vec_a and vec_b:
+            score = vector_cosine_similarity(vec_a, vec_b)
+        else:
+            score = cosine_similarity(entry_texts.get(file_a, ''), entry_texts.get(file_b, ''))
+
+        if score >= similarity_threshold:
+            edge_width = round(3.0 + (score * 10.0), 2)
+            edges.append({
+                'from': f'entry:{file_a}',
+                'to': f'entry:{file_b}',
+                'value': round(score * 2.2, 3),
+                'width': edge_width,
+                'label': f"{score:.2f}",
+                'font': {'size': 10, 'color': '#9fb3ff'},
+                'color': {'color': '#80ffdb', 'opacity': 0.65},
+            })
+
+    nodes = entry_nodes + list(theme_nodes.values())
+    return {'nodes': nodes, 'edges': edges}
 
 
 def preprocess_image_for_ocr(image):
@@ -348,9 +527,21 @@ def search_page():
         items.sort(key=lambda x: x.get('uploaded_at', ''), reverse=True)
     except Exception:
         pass
-    # filter by tag
+    # filter by tag/title/filename/summary
     if q:
-        items = [img for img in items if any(q in t.lower() for t in img.get('tags', []))]
+        def matches_query(img):
+            tags = [str(t).lower() for t in (img.get('tags') or [])]
+            title = str(img.get('title') or '').lower()
+            filename = str(img.get('filename') or '').lower()
+            summary = str(img.get('summary') or '').lower()
+            return (
+                any(q in tag for tag in tags)
+                or q in title
+                or q in filename
+                or q in summary
+            )
+
+        items = [img for img in items if matches_query(img)]
     # filter by date range if provided (use entry['date'] or uploaded_at)
     def in_range(img):
         if not (start or end):
@@ -390,7 +581,21 @@ def timeline_page():
         items.sort(key=lambda x: x.get('_sort_date', ''))
     except Exception:
         pass
-    return render_template("timeline.html", items=items)
+    events = [
+        {
+            'date': img.get('date') or img.get('uploaded_at', '')[:10],
+            'event': img.get('title') or img.get('filename')
+        }
+        for img in items
+    ]
+    return render_template("timeline.html", items=items, events=events)
+
+
+@app.route('/network')
+def network_page():
+    metadata = load_metadata()
+    graph = build_theme_network(metadata) if metadata else {'nodes': [], 'edges': []}
+    return render_template('network.html', graph=graph)
 
 
 @app.route('/comment', methods=['POST'])

@@ -4,8 +4,8 @@
 
 {% block content %}
 <h1>{{ entry.title or filename }}</h1>
-<img src="/uploads/{{ filename }}" style="max-width:400px; display:block; margin-bottom:10px;" />
-<ul>
+<img src="/uploads/{{ filename }}" class="detail-image" />
+<ul class="detail-list">
     <li><strong>Filename:</strong> {{ filename }}</li>
     <li><strong>Date:</strong> {{ entry.date or entry.uploaded_at[:10] }}</li>
     <li><strong>Tags:</strong> {{ entry.tags | join(', ') if entry.tags else 'None' }}</li>
@@ -13,19 +13,19 @@
 
 {% if entry.extracted_text %}
 <h2>Extracted Text (OCR)</h2>
-<div style="background:#f5f5f5; padding:10px; border-radius:5px; white-space:pre-wrap; word-wrap:break-word;">
+<div class="text-block">
 {{ entry.extracted_text }}
 </div>
 {% endif %}
 
-<h2>AI Summary</h2>
-<button id="summaryBtn" style="margin-bottom:10px;">{{ 'Regenerate Summary' if entry.summary else 'Generate Summary' }}</button>
-<div id="summaryStatus" style="margin-bottom:8px;"></div>
-<div id="summaryBox" {% if not entry.summary %}hidden{% endif %} style="background:#f5f5f5; padding:10px; border-radius:5px; white-space:pre-wrap; word-wrap:break-word;">{{ entry.summary or '' }}</div>
+<h2>Summary</h2>
+<button id="summaryBtn">{{ 'Regenerate Summary' if entry.summary else 'Generate Summary' }}</button>
+<div id="summaryStatus"></div>
+<div id="summaryBox" {% if not entry.summary %}hidden{% endif %} class="text-block">{{ entry.summary or '' }}</div>
 
 <h2>Related Entries</h2>
 {% if related_entries and related_entries|length > 0 %}
-    <ul>
+    <ul class="related-list">
     {% for rel in related_entries %}
         <li>
             <a href="/image/{{ rel.filename }}">{{ rel.title }}</a>
@@ -39,11 +39,11 @@
 
 <h2>Comments</h2>
 {% if entry.comments and entry.comments|length > 0 %}
-    <ul>
+    <ul class="comment-list">
     {% for c in entry.comments %}
         <li>
             {{ c.timestamp[0:10] }} - {{ c.text }}
-            <button class="delete-comment-btn" data-index="{{ loop.index0 }}" style="margin-left:10px; color:red; font-size:0.8em;">Delete</button>
+            <button class="delete-comment-btn" data-index="{{ loop.index0 }}">Delete</button>
         </li>
     {% endfor %}
     </ul>
@@ -57,7 +57,7 @@
     <button type="submit">Post Comment</button>
 </form>
 
-<button id="deleteBtn" style="margin-top:20px;color:red;">Delete Image</button>
+<button id="deleteBtn">Delete Image</button>
 
 <script>
     const summaryBtn = document.getElementById('summaryBtn');

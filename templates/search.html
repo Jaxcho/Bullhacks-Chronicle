@@ -5,20 +5,20 @@
 {% block content %}
 <h1>All Images</h1>
 
-<form method="get" action="/search" style="margin-bottom:20px;">
-    <input type="text" name="q" placeholder="Search by tag" value="{{ query or '' }}" />
-    <label style="margin-left:10px;">from <input type="date" name="start_date" value="{{ start_date or '' }}" /></label>
-    <label style="margin-left:5px;">to <input type="date" name="end_date" value="{{ end_date or '' }}" /></label>
-    <button type="submit" style="margin-left:10px;">Search</button>
-    {% if query %}<span style="margin-left:10px;">results for "{{ query }}"</span>{% endif %}
+<form method="get" action="/search" class="search-form">
+	<input type="text" name="q" placeholder="Search by tag, title, filename, or summary" value="{{ query or '' }}" />
+	<label>from <input type="date" name="start_date" value="{{ start_date or '' }}" /></label>
+	<label>to <input type="date" name="end_date" value="{{ end_date or '' }}" /></label>
+	<button type="submit">Search</button>
 </form>
+{% if query %}<span class="query-label">results for "{{ query }}"</span>{% endif %}
 
 {% if images and images|length > 0 %}
 	<div class="gallery">
 		{% for img in images %}
 			<div class="card">
 				<a href="/uploads/{{ img.filename }}" target="_blank">
-					<img src="/uploads/{{ img.filename }}" alt="{{ img.title or img.filename }}" style="max-width:200px; display:block;" />
+					<img src="/uploads/{{ img.filename }}" alt="{{ img.title or img.filename }}" />
 				</a>
 				<div class="meta">
 					<strong>{{ img.title or img.filename }}</strong><br />

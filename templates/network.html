@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}Theme Network{% endblock %}
+
+{% block content %}
+<h1 class="hero-title">Theme Network</h1>
+<p class="hero-subtitle">Entries and themes mapped as connected nodes.</p>
+
+<div class="glass-container">
+    <div id="themeNetwork" style="height: 620px; border-radius: 14px; background: rgba(15,23,42,0.35);"></div>
+</div>
+
+{% if not graph.nodes or graph.nodes|length == 0 %}
+<p style="text-align:center; margin-top: 14px;">Upload entries first to build the network.</p>
+{% endif %}
+
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<script id="network-graph" type="application/json">{{ graph | tojson }}</script>
+<script>
+    const graphDataRaw = document.getElementById('network-graph');
+    const graphData = graphDataRaw ? JSON.parse(graphDataRaw.textContent || '{"nodes":[],"edges":[]}') : {nodes: [], edges: []};
+    const container = document.getElementById('themeNetwork');
+
+    if (container && graphData.nodes && graphData.nodes.length > 0) {
+        const nodes = new vis.DataSet(graphData.nodes.map(node => ({
+            ...node,
+            color: node.group === 'theme'
+                ? { background: '#4ea8de', border: '#80ffdb', highlight: { background: '#80ffdb', border: '#80ffdb' } }
+                : { background: '#5e60ce', border: '#c7d2fe', highlight: { background: '#a5b4fc', border: '#c7d2fe' } },
+            font: { color: '#f8fafc', size: 13, face: 'Inter' }
+        })));
+        const edges = new vis.DataSet(graphData.edges);
+
+        const network = new vis.Network(container, { nodes, edges }, {
+            physics: {
+                solver: 'forceAtlas2Based',
+                stabilization: { iterations: 180 },
+                forceAtlas2Based: {
+                    gravitationalConstant: -45,
+                    springLength: 130,
+                    springConstant: 0.04,
+                    damping: 0.55
+                }
+            },
+            interaction: {
+                hover: true,
+                tooltipDelay: 120,
+                navigationButtons: true,
+                keyboard: true
+            },
+            edges: {
+                smooth: { type: 'dynamic' },
+                width: 1.3,
+                scaling: {
+                    min: 1,
+                    max: 10
+                }
+            },
+            nodes: {
+                scaling: {
+                    min: 10,
+                    max: 30
+                }
+            }
+        });
+
+        network.once('stabilizationIterationsDone', () => {
+            network.fit({ animation: true });
+        });
+
+        network.on('click', function(params) {
+            if (!params.nodes || params.nodes.length === 0) return;
+            const nodeId = params.nodes[0];
+            const node = nodes.get(nodeId);
+            if (node && node.group === 'entry' && node.filename) {
+                window.location.href = `/image/${encodeURIComponent(node.filename)}`;
+            }
+        });
+    }
+</script>
+{% endblock %}

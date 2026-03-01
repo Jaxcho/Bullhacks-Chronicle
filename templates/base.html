@@ -3,16 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Bullhacks Chronicle{% endblock %}</title>
+    <title>{% block title %}Chronicle – Your Story in Time{% endblock %}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
     <header class="main-header">
         <nav>
-            <a href="/">Home</a> |
-            <a href="/upload">Upload</a> |
-            <a href="/search">Search</a> |
+            <a href="/">Home</a>
+            <a href="/upload">Upload</a>
+            <a href="/search">Search</a>
             <a href="/timeline">Timeline</a>
+            <a href="/network">Network</a>
         </nav>
     </header>
 
