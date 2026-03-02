@@ -87,5 +87,19 @@
     "summary_model": "gemma3:1b",
     "summary_generated_at": "2026-03-01T03:24:49.940778Z",
     "date": "2026-02-28"
+  },
+  "bullhacksexample.jpeg": {
+    "title": "Example journal entry",
+    "tags": [
+      "example",
+      "entry"
+    ],
+    "comments": [],
+    "extracted_text": "i wAY fire pournal enicy SO Tai WARY Not Ye peckect Really ne oni reason T'm wes king ecance LT think oy Me hers usc ik Aho Wi Wele ME become oO pexker wriken So FT Know DT bkaced owt the no xe LAVAA BL ak the Fev Wiank peaukiful lights oF Paris Evance oceered the wondow Ao Heaw Moc Bo uA Ana so eamne Moury WOFEC peead TE closed my",
+    "uploaded_at": "2026-03-01T23:40:53.385675Z",
+    "summary": "Okay, here’s a summary of that journal entry, written in a natural, human-sounding style: The entry describes a feeling of intense urgency and a desperate need to escape something. The author is grappling with a strong motivation – perhaps a desire to leave or a significant decision – and feels a deep longing for Paris, France. It seems like a moment of intense emotional distress and a focused mental image.",
+    "summary_model": "gemma3:1b",
+    "summary_generated_at": "2026-03-01T23:40:53.385917Z",
+    "date": "2025-08-06"
   }
 }
